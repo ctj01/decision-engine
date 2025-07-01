@@ -1,0 +1,234 @@
+# 1) Secret con las credenciales de la app
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authserver-app-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  DB_USER: "identity_app"
+  DB_PASS: "IdentityApp@123"
+
+---
+# 2) Secret con la contraseña SA de SQL
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mssql-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  SA_PASSWORD: "YourStrong@Passw0rd"
+
+---
+# 3) ConfigMap con el script de inicialización
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-auth-db-sql
+  namespace: decision-engine-dev
+data:
+  init_identity_user.sql: |
+    -- 1) Crear la base de datos si no existe
+    IF DB_ID(N'AuthServerDb') IS NULL
+      CREATE DATABASE [AuthServerDb];
+    GO
+
+    -- 2) Crear login a nivel de servidor
+    USE master;
+    GO
+    IF NOT EXISTS(SELECT * FROM sys.server_principals WHERE name=N'$(DB_USER)')
+      EXEC('CREATE LOGIN ['+'$(DB_USER)'+'] WITH PASSWORD='''+'$(DB_PASS)'+''';');
+    GO
+
+    -- 3) Crear usuario dentro de AuthServerDb y asignarle roles
+    USE [AuthServerDb];
+    GO
+    IF NOT EXISTS(SELECT * FROM sys.database_principals WHERE name=N'$(DB_USER)')
+      EXEC('CREATE USER ['+'$(DB_USER)'+'] FOR LOGIN ['+'$(DB_USER)'+'];');
+    GO
+
+    -- 4) Permisos mínimos
+    ALTER ROLE db_datareader  ADD MEMBER [$(DB_USER)];
+    ALTER ROLE db_datawriter  ADD MEMBER [$(DB_USER)];
+    ALTER ROLE db_ddladmin    ADD MEMBER [$(DB_USER)];
+    GO
+
+---
+# 4) Headless Service para el StatefulSet de SQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql
+  namespace: decision-engine-dev
+spec:
+  clusterIP: None
+  selector:
+    app: mssql
+  ports:
+    - name: sql
+      port: 1433
+      targetPort: 1433
+
+---
+# 5) Service ClusterIP para conexiones de clientes y del Job
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql-clusterip
+  namespace: decision-engine-dev
+spec:
+  selector:
+    app: mssql
+  ports:
+    - name: sql
+      port: 1433
+      targetPort: 1433
+
+---
+# 6) StatefulSet de SQL Server
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mssql
+  namespace: decision-engine-dev
+spec:
+  serviceName: mssql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mssql
+  template:
+    metadata:
+      labels:
+        app: mssql
+    spec:
+      initContainers:
+      - name: init-perms
+        image: busybox:1.36
+        command: ["sh","-c","chown -R 10001:0 /var/opt/mssql"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/opt/mssql
+
+      containers:
+      - name: mssql
+        image: mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
+        ports:
+        - containerPort: 1433
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: SA_PASSWORD
+        volumeMounts:
+        - name: data
+          mountPath: /var/opt/mssql
+        livenessProbe:
+          tcpSocket:
+            port: 1433
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - /opt/mssql-tools/bin/sqlcmd
+            - -S
+            - localhost
+            - -U
+            - sa
+            - -P
+            - "$(SA_PASSWORD)"
+            - -Q
+            - "SELECT 1"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+# 7) Job para inicializar la base y el usuario
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-auth-db-user
+  namespace: decision-engine-dev
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: init-user
+        image: mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
+        imagePullPolicy: Always
+        env:
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: SA_PASSWORD
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: authserver-app-secret
+              key: DB_USER
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: authserver-app-secret
+              key: DB_PASS
+        - name: SQL_SERVER
+          value: "mssql-clusterip.decision-engine-dev.svc.cluster.local"
+        command:
+        - bash
+        - -c
+        - |
+          set -euo pipefail
+
+          echo "▶ Preprocesando script SQL…"
+          sed \
+            -e "s/\$(DB_USER)/${DB_USER}/g" \
+            -e "s/\$(DB_PASS)/${DB_PASS}/g" \
+            /scripts/init_identity_user.sql > /tmp/init.sql
+
+          echo "▶ Probe de versión…"
+          /opt/mssql-tools/bin/sqlcmd \
+            -S tcp:$SQL_SERVER,1433 \
+            -U sa -P "$SA_PASSWORD" \
+            -l 5 \
+            -Q "SELECT @@VERSION" \
+            2>&1 | head -n 5
+
+          echo "▶ Ejecutando init script…"
+          if /opt/mssql-tools/bin/sqlcmd \
+               -S tcp:$SQL_SERVER,1433 \
+               -U sa -P "$SA_PASSWORD" \
+               -i /tmp/init.sql \
+               2> /tmp/sql_err; then
+            echo "✔ Script OK"
+            exit 0
+          else
+            echo "❌ ERROR al ejecutar script:"
+            sed -n '1,20p' /tmp/sql_err
+            exit 1
+          fi
+        volumeMounts:
+        - name: init-script
+          mountPath: /scripts
+      volumes:
+      - name: init-script
+        configMap:
+          name: init-auth-db-sql
+          defaultMode: 0644

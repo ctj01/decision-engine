@@ -1,0 +1,108 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mssql-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  SA_PASSWORD: "YourStrong@Passw0rd"  # ¡Cámbialo en producción!
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql
+  namespace: decision-engine-dev
+spec:
+  clusterIP: None
+  selector:
+    app: mssql
+  ports:
+    - port: 1433
+      name: sql
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql-clusterip
+  namespace: decision-engine-dev
+spec:
+  selector:
+    app: mssql
+  ports:
+    - port: 1433
+      name: sql
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mssql
+  namespace: decision-engine-dev
+spec:
+  serviceName: mssql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mssql
+  template:
+    metadata:
+      labels:
+        app: mssql
+    spec:
+      initContainers:
+      - name: init-perms
+        image: busybox:1.36
+        command:
+          - sh
+          - -c
+          - chown -R 10001:0 /var/opt/mssql
+        volumeMounts:
+          - name: data
+            mountPath: /var/opt/mssql
+
+      containers:
+      - name: mssql
+        image: mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
+        env:
+          - name: ACCEPT_EULA
+            value: "Y"
+          - name: SA_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mssql-secret
+                key: SA_PASSWORD
+        ports:
+          - containerPort: 1433
+        volumeMounts:
+          - name: data
+            mountPath: /var/opt/mssql
+
+        livenessProbe:
+          tcpSocket:
+            port: 1433
+          initialDelaySeconds: 60
+          periodSeconds: 30
+
+        readinessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - |
+                /opt/mssql-tools/bin/sqlcmd \
+                  -S localhost -U sa -P "$SA_PASSWORD" \
+                  -Q "SELECT 1"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 20Gi

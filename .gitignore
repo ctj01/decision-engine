@@ -1,0 +1,15 @@
+# VS / Rider
+**/.vs
+**/.idea
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# bin / obj / logs
+**/bin
+**/obj
+**/*.log
+
+# paquetes
+**/packages

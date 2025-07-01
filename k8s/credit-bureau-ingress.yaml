@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: credit-bureau-ingress
+  namespace: decision-engine-dev
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"   # solo HTTP por ahora
+    nginx.ingress.kubernetes.io/rewrite-target: /       # no reescritura de ruta, se mantiene la ruta completa
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: credit-bureau.local
+      http:
+        paths:
+          # Se mantiene la ruta /api/ completa, sin re-escrituras
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: credit-bureau
+                port:
+                  number: 80

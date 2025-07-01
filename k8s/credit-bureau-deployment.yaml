@@ -1,0 +1,86 @@
+# ConfigMap (conexión a MongoDB)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: credit-bureau-secret
+  namespace: decision-engine-dev
+stringData:
+  # Aquí se define la URI de conexión a MongoDB
+  MongoUri: "mongodb://root:example@mongo:27017/creditbureau?authSource=admin"
+  IdentityServerUrl: "http://identity-server:5001"
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-bureau
+  namespace: decision-engine-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: credit-bureau
+  template:
+    metadata:
+      labels:
+        app: credit-bureau
+    spec:
+      containers:
+      - name: credit-bureau
+        image: credit-bureau:1.0
+        imagePullPolicy: IfNotPresent
+        # Aquí se monta el Secret como una variable de entorno
+        env:
+        - name: ASPNETCORE_URLS
+          value: "http://+:8080"
+        - name: MongoUri
+          valueFrom:
+            secretKeyRef:
+              name: credit-bureau-secret
+              key: MongoUri
+        - name: IdentityServerUrl
+          valueFrom:
+            secretKeyRef:
+              name: credit-bureau-secret
+              key: IdentityServerUrl
+        ports:
+        - containerPort: 8080
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: credit-bureau
+  namespace: decision-engine-dev
+spec:
+  selector:
+    app: credit-bureau
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: credit-bureau-ingress
+  namespace: decision-engine-dev
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: credit-bureau.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: credit-bureau
+            port:
+              number: 80

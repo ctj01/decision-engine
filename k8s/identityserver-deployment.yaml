@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authserver-db-secret
+  namespace: decision-engine-dev
+stringData:
+  connectionString: "Server=mssql;Database=AuthServerDb;User Id=identity_app;Password=IdentityApp@123;TrustServerCertificate=True;"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-server
+  namespace: decision-engine-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity-server
+  template:
+    metadata:
+      labels:
+        app: identity-server
+    spec:
+      containers:
+        - name: identity-server
+          image: identity-server:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: authserver-app-secret
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: authserver-app-secret
+                  key: DB_PASS
+            - name: ConnectionStrings__AuthDb
+              valueFrom:
+                secretKeyRef:
+                  name: authserver-db-secret
+                  key: connectionString
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-server
+  namespace: decision-engine-dev
+spec:
+  selector:
+    app: identity-server
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5001
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: identity-server-ingress
+  namespace: decision-engine-dev
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: identity-server.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-server
+                port:
+                  number: 5001

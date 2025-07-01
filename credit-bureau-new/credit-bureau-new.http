@@ -1,0 +1,6 @@
+@credit_bureau_new_HostAddress = http://localhost:5201
+
+GET {{credit_bureau_new_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

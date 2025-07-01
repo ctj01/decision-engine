@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-bureau-config
+  namespace: decision-engine-dev
+data:
+  MongoUri: mongodb://root:example@mongo.decision-engine.svc.cluster.local:27017/?authSource=admin
