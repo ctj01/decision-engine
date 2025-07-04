@@ -1,51 +1,24 @@
-using LoanService.Infrastructure.Data;
-using LoanService.Infrastructure.Repository;
-using LoanService.Infrastructure.UnitOfWork;
-using Microsoft.EntityFrameworkCore;
+using LoanService.Api.Extensions;
+using LoanService.Application.Extensions;
+using LoanService.Infrastructure.Extensions;
+using LoanService.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddDbContext<LoanDbContext>(opt =>
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("LoanDb")));
-
+builder.Services
+    .AddPersistence(builder.Configuration)                 // infra
+    .AddApplicationServices()                              // app logic
+    .AddAuthenticationAndAuthorization(builder.Configuration)  // API concerns
+    .AddSwaggerDocumentation(builder.Configuration);          // API concerns
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
 
-app.UseHttpsRedirection();
+app.UseSwaggerWithUi();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.UseHttpsRedirection()
+    .UseAuthentication()
+    .UseAuthorization();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
+app.MapLoanEndpoints();                                    // minimal endpoints
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
