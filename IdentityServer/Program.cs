@@ -39,6 +39,7 @@ using(var scope = app.Services.CreateScope())
 {
     await SeedData.InitializeAsync(scope.ServiceProvider);
 }
+app.UseAuthentication(); 
 app.UseIdentityServer();   
 app.UseAuthorization();
 

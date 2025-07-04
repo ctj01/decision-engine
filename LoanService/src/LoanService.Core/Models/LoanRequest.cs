@@ -26,6 +26,11 @@ public class LoanRequest
     /// Requested term length in months.
     /// </summary>
     public int TermMonths { get; set; }
+    
+    /// <summary>
+    /// Status of the loan request (e.g., Pending, Approved, Rejected).
+    /// </summary>
+    public string Status { get; set; } = "Pending";
 
     /// <summary>
     /// Date when the request was submitted.

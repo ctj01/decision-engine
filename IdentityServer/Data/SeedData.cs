@@ -1,29 +1,35 @@
-namespace IdentityServer.Data;
+// SeedData.cs
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 
-public static class SeedData
+namespace IdentityServer.Data
 {
-    public static async Task InitializeAsync(IServiceProvider services)
+    public static class SeedData
     {
-        var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
-        var userMgr = services.GetRequiredService<UserManager<IdentityUser>>();
-        
-        if (!await roleMgr.RoleExistsAsync("Admin"))
-            await roleMgr.CreateAsync(new IdentityRole("Admin"));
-        
-        var adminEmail = "admin@tuapp.com";
-        var admin = await userMgr.FindByEmailAsync(adminEmail);
-        if (admin == null)
+        public static async Task InitializeAsync(IServiceProvider services)
         {
-            admin = new IdentityUser
+            var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
+            var userMgr = services.GetRequiredService<UserManager<ApplicationUser>>();  // <- here
+
+            // 1) ensure the "Admin" role exists
+            if (!await roleMgr.RoleExistsAsync("Admin"))
+                await roleMgr.CreateAsync(new IdentityRole("Admin"));
+
+            // 2) ensure a default admin user
+            var adminEmail = "admin@yourapp.com";
+            var admin = await userMgr.FindByEmailAsync(adminEmail);
+            if (admin == null)
             {
-                UserName = adminEmail,
-                Email = adminEmail,
-                EmailConfirmed = true
-            };
-            await userMgr.CreateAsync(admin, "Admin123!");
-            await userMgr.AddToRoleAsync(admin, "Admin");
+                admin = new ApplicationUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    EmailConfirmed = true,
+                    FirstName = "System",
+                    LastName = "Administrator",
+                };
+                await userMgr.CreateAsync(admin, "Admin123!");
+                await userMgr.AddToRoleAsync(admin, "Admin");
+            }
         }
     }
 }
