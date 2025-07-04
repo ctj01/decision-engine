@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanService.Core", "src\Loa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanService.Infrastructure", "src\LoanService.Infrastructure\LoanService.Infrastructure.csproj", "{342D46DB-7CF5-4405-8C2B-784DD0594A38}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionEngine.Loan.Application", "DecisionEngine.Loan.Application\DecisionEngine.Loan.Application.csproj", "{E58BA486-20B9-4478-96CC-5254194D5304}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanService.Application", "src\LoanService.Application\LoanService.Application.csproj", "{E58BA486-20B9-4478-96CC-5254194D5304}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
