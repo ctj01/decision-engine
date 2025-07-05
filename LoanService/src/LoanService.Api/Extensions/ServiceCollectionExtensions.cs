@@ -18,6 +18,7 @@ namespace LoanService.Api.Extensions
                 {
                     opts.Authority = config["IdentityServer:Authority"];
                     opts.TokenValidationParameters.ValidateAudience = false;
+                    opts.RequireHttpsMetadata = false; // For development purposes only
                 });
 
             services.AddAuthorization(opts =>

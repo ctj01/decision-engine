@@ -16,8 +16,11 @@ var app = builder.Build();
 
 app.UseSwaggerWithUi();
 
-app.UseHttpsRedirection()
-    .UseAuthentication()
+if (!builder.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+app.UseAuthentication()
     .UseAuthorization();
 
 app.MapLoanEndpoints();                                    // minimal endpoints

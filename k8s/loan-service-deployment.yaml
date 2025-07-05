@@ -1,0 +1,98 @@
+---
+# ----------------------------
+# Loan Service Deployment
+# ----------------------------
+
+# 1) Secret with the database connection string
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loan-service-db-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  connectionString: "Server=loandb;Database=LoanDb;User Id=loan_app;Password=LoanApp@123;TrustServerCertificate=True;"
+
+---
+# 2) Deployment for the Loan Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-service
+  namespace: decision-engine-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loan-service
+  template:
+    metadata:
+      labels:
+        app: loan-service
+    spec:
+      containers:
+      - name: loan-service
+        image: loan-service:1.0
+        ports:
+          - containerPort: 80
+        env:
+          - name: ASPNETCORE_ENVIRONMENT
+            value: "Development"
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: loan-app-secret
+                key: DB_USER
+          - name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: loan-app-secret
+                key: DB_PASS
+          - name: ConnectionStrings__LoanDb
+            valueFrom:
+              secretKeyRef:
+                name: loan-service-db-secret
+                key: connectionString
+          - name: IdentityServer__Authority 
+            value: "http://identityserver.decision-engine-dev.svc.cluster.local"
+
+
+---
+# 3) ClusterIP Service for Loan Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-service
+  namespace: decision-engine-dev
+spec:
+  selector:
+    app: loan-service
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+
+---
+# 4) Ingress to expose the Loan Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loan-service-ingress
+  namespace: decision-engine-dev
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: loan-service.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: loan-service
+            port:
+              number: 80

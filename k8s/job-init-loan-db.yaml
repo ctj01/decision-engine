@@ -1,0 +1,168 @@
+# 1) Secret with application credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loan-app-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  DB_USER: "loan_app"
+  DB_PASS: "LoanApp@123"
+
+---
+# 2) Secret with SQL Server SA password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loandb-sa-secret
+  namespace: decision-engine-dev
+type: Opaque
+stringData:
+  SA_PASSWORD: "StrongSAPassword!234"
+
+---
+# 3) ConfigMap containing the LoanDb initialization script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-loan-db-sql
+  namespace: decision-engine-dev
+data:
+  init-loandb.sh: |-
+    #!/bin/bash
+    # Wait until SQL Server is ready
+    sleep 20
+    # Create the LoanDb database
+    /opt/mssql-tools/bin/sqlcmd -S loandb -U SA -P "$SA_PASSWORD" -Q "CREATE DATABASE [LoanDb];"
+    # Create login and user with db_owner permissions
+    /opt/mssql-tools/bin/sqlcmd -S loandb -U SA -P "$SA_PASSWORD" -d LoanDb -Q "
+      CREATE LOGIN [$(DB_USER)] WITH PASSWORD='$(DB_PASS)';
+      CREATE USER [$(DB_USER)] FOR LOGIN [$(DB_USER)];
+      ALTER ROLE db_owner ADD MEMBER [$(DB_USER)];
+    "
+    if [ $? -eq 0 ]; then
+      echo "✅ LoanDb initialized successfully."
+      exit 0
+    else
+      echo "❌ Error initializing LoanDb."
+      exit 1
+    fi
+
+---
+# 4) Service exposing the SQL Server port
+apiVersion: v1
+kind: Service
+metadata:
+  name: loandb
+  namespace: decision-engine-dev
+spec:
+  ports:
+    - port: 1433
+      targetPort: 1433
+  selector:
+    app: loandb
+
+---
+# 5) PersistentVolumeClaim for SQL Server data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loandb-data
+  namespace: decision-engine-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+
+---
+# 6) StatefulSet running SQL Server with LoanDb
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loandb
+  namespace: decision-engine-dev
+spec:
+  serviceName: "loandb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loandb
+  template:
+    metadata:
+      labels:
+        app: loandb
+    spec:
+      containers:
+      - name: mssql
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        ports:
+        - containerPort: 1433
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loandb-sa-secret
+              key: SA_PASSWORD
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: loan-app-secret
+              key: DB_USER
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: loan-app-secret
+              key: DB_PASS
+        volumeMounts:
+        - name: mssql-data
+          mountPath: /var/opt/mssql
+      volumes:
+      - name: mssql-data
+        persistentVolumeClaim:
+          claimName: loandb-data
+
+---
+# 7) Job to run the initialization script
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-loan-db
+  namespace: decision-engine-dev
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: init-loan-db
+        image: mcr.microsoft.com/mssql-tools
+        command: ["/bin/bash", "/scripts/init-loandb.sh"]
+        env:
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loandb-sa-secret
+              key: SA_PASSWORD
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: loan-app-secret
+              key: DB_USER
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: loan-app-secret
+              key: DB_PASS
+        volumeMounts:
+        - name: init-script
+          mountPath: /scripts
+      volumes:
+      - name: init-script
+        configMap:
+          name: init-loan-db-sql
+
