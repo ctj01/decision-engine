@@ -6,7 +6,7 @@ metadata:
   namespace: decision-engine-dev
 type: Opaque
 stringData:
-  SA_PASSWORD: "YourStrong@Passw0rd"  # ¡Cámbialo en producción!
+  SA_PASSWORD: "YourStrong@Passw0rd" # Replace with your actual SA password
 
 ---
 apiVersion: v1

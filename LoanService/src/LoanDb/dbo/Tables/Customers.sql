@@ -1,5 +1,7 @@
 ﻿CREATE TABLE [dbo].[Customers] (
     [Id]                   UNIQUEIDENTIFIER CONSTRAINT [DF_Customers_Id] DEFAULT (newsequentialid()) NOT NULL,
+    [FirstName]           NVARCHAR (100)   NOT NULL,
+    [LastName]            NVARCHAR (100)   NOT NULL,
     [FullName]             NVARCHAR (200)   NOT NULL,
     [Email]                NVARCHAR (150)   NOT NULL,
     [IdentificationNumber] NVARCHAR (50)    NOT NULL,

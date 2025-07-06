@@ -100,7 +100,6 @@ namespace LoanService.Api.Extensions
                 .WithName("GetLoanById");
 
             return app;
-        }
-            
+        }          
     }
 }

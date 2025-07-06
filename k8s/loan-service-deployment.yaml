@@ -55,6 +55,11 @@ spec:
                 key: connectionString
           - name: IdentityServer__Authority 
             value: "http://identityserver.decision-engine-dev.svc.cluster.local"
+          - name: RabbitMq__Uri
+            valueFrom:
+              configMapKeyRef:
+                name: rabbitmq-config
+                key: RabbitMq__Uri
 
 
 ---

@@ -1,4 +1,5 @@
-# 1) Secret with application credentials
+---
+# 1) secret for Loan App credentials
 apiVersion: v1
 kind: Secret
 metadata:
@@ -10,7 +11,7 @@ stringData:
   DB_PASS: "LoanApp@123"
 
 ---
-# 2) Secret with SQL Server SA password
+# 2) Secret for LoanDb SA password
 apiVersion: v1
 kind: Secret
 metadata:
@@ -18,116 +19,10 @@ metadata:
   namespace: decision-engine-dev
 type: Opaque
 stringData:
-  SA_PASSWORD: "StrongSAPassword!234"
+  SA_PASSWORD: "YourStrong@Passw0rd"
 
 ---
-# 3) ConfigMap containing the LoanDb initialization script
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: init-loan-db-sql
-  namespace: decision-engine-dev
-data:
-  init-loandb.sh: |-
-    #!/bin/bash
-    # Wait until SQL Server is ready
-    sleep 20
-    # Create the LoanDb database
-    /opt/mssql-tools/bin/sqlcmd -S loandb -U SA -P "$SA_PASSWORD" -Q "CREATE DATABASE [LoanDb];"
-    # Create login and user with db_owner permissions
-    /opt/mssql-tools/bin/sqlcmd -S loandb -U SA -P "$SA_PASSWORD" -d LoanDb -Q "
-      CREATE LOGIN [$(DB_USER)] WITH PASSWORD='$(DB_PASS)';
-      CREATE USER [$(DB_USER)] FOR LOGIN [$(DB_USER)];
-      ALTER ROLE db_owner ADD MEMBER [$(DB_USER)];
-    "
-    if [ $? -eq 0 ]; then
-      echo "✅ LoanDb initialized successfully."
-      exit 0
-    else
-      echo "❌ Error initializing LoanDb."
-      exit 1
-    fi
-
----
-# 4) Service exposing the SQL Server port
-apiVersion: v1
-kind: Service
-metadata:
-  name: loandb
-  namespace: decision-engine-dev
-spec:
-  ports:
-    - port: 1433
-      targetPort: 1433
-  selector:
-    app: loandb
-
----
-# 5) PersistentVolumeClaim for SQL Server data
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: loandb-data
-  namespace: decision-engine-dev
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: standard
-
----
-# 6) StatefulSet running SQL Server with LoanDb
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: loandb
-  namespace: decision-engine-dev
-spec:
-  serviceName: "loandb"
-  replicas: 1
-  selector:
-    matchLabels:
-      app: loandb
-  template:
-    metadata:
-      labels:
-        app: loandb
-    spec:
-      containers:
-      - name: mssql
-        image: mcr.microsoft.com/mssql/server:2019-latest
-        ports:
-        - containerPort: 1433
-        env:
-        - name: ACCEPT_EULA
-          value: "Y"
-        - name: SA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: loandb-sa-secret
-              key: SA_PASSWORD
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: loan-app-secret
-              key: DB_USER
-        - name: DB_PASS
-          valueFrom:
-            secretKeyRef:
-              name: loan-app-secret
-              key: DB_PASS
-        volumeMounts:
-        - name: mssql-data
-          mountPath: /var/opt/mssql
-      volumes:
-      - name: mssql-data
-        persistentVolumeClaim:
-          claimName: loandb-data
-
----
-# 7) Job to run the initialization script
+# 3) Job to initialize LoanDb
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -141,7 +36,34 @@ spec:
       containers:
       - name: init-loan-db
         image: mcr.microsoft.com/mssql-tools
-        command: ["/bin/bash", "/scripts/init-loandb.sh"]
+        command: ["/bin/bash", "-c", "--"]
+        args:
+        - |
+          # Espera para que SQL Server arranque
+          sleep 20
+
+          # 1) Crear base si no existe
+          /opt/mssql-tools/bin/sqlcmd -S mssql-0.mssql -U SA -P "$SA_PASSWORD" -Q "
+            IF DB_ID('LoanDb') IS NULL
+            BEGIN
+              CREATE DATABASE [LoanDb];
+            END
+          "
+
+          # 2) Crear login/usuario y dar permisos si no existen
+          /opt/mssql-tools/bin/sqlcmd -S mssql-0.mssql -U SA -P "$SA_PASSWORD" -d LoanDb -Q "
+            IF NOT EXISTS (SELECT name FROM sys.sql_logins WHERE name = N'$(DB_USER)')
+            BEGIN
+              CREATE LOGIN [$(DB_USER)] WITH PASSWORD=N'$(DB_PASS)';
+            END
+            IF NOT EXISTS (SELECT name FROM sys.database_principals WHERE name = N'$(DB_USER)')
+            BEGIN
+              CREATE USER [$(DB_USER)] FOR LOGIN [$(DB_USER)];
+              ALTER ROLE db_owner ADD MEMBER [$(DB_USER)];
+            END
+          "
+
+          echo "✅ LoanDb is ready on existing SQL Server."
         env:
         - name: SA_PASSWORD
           valueFrom:
@@ -158,11 +80,3 @@ spec:
             secretKeyRef:
               name: loan-app-secret
               key: DB_PASS
-        volumeMounts:
-        - name: init-script
-          mountPath: /scripts
-      volumes:
-      - name: init-script
-        configMap:
-          name: init-loan-db-sql
-

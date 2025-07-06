@@ -4,6 +4,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { useAuth } from './context/AuthContext'
 import { Navbar } from './components/Navbar'
 import type { JSX } from 'react'
+import { RegisterPage } from './features/auth/RegisterPage'
 /** Un guard que permite el acceso solo si hay token */
 function PrivateRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuth()
@@ -17,7 +18,7 @@ export default function App() {
       <div className="pt-16">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-
+        <Route path="/register" element={<RegisterPage />} />
         <Route
           path="/dashboard"
         />

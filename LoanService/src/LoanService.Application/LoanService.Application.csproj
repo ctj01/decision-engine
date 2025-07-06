@@ -10,4 +10,10 @@
     <ProjectReference Include="..\LoanService.Infrastructure\LoanService.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MassTransit" Version="8.5.0" />
+    <PackageReference Include="MassTransit.Abstractions" Version="8.5.0" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.0" />
+  </ItemGroup>
+
 </Project>

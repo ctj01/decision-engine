@@ -1,52 +1,95 @@
 ﻿namespace IdentityServer
 {
     using Duende.IdentityServer.Models;
-    using System.Collections.Generic;
+using System.Collections.Generic;
 
-    public static class Config
-    {
-        // Expose OpenID Connect identity data (only if you have user-centric flows)
-        public static IEnumerable<IdentityResource> IdentityResources =>
-            new IdentityResource[]
-            {
-                new IdentityResources.OpenId(),
-                new IdentityResources.Profile(),
-            };
+public static class Config
+{
+    public static IEnumerable<IdentityResource> IdentityResources =>
+    [
+        new IdentityResources.OpenId(),
+            new IdentityResources.Profile()
+    ];
 
-        // Define the API scopes your microservices will accept
-        public static IEnumerable<ApiScope> ApiScopes =>
-            new ApiScope[]
+   
+    public static IEnumerable<ApiResource> ApiResources =>
+        new[]
+        {
+            new ApiResource("loanApi")
             {
-                new ApiScope("credit.read",  "Read access to Credit API"),
-                new ApiScope("loan.request", "Request loans")
-            };
+                Scopes = { "loan.request" }
+            },
+            new ApiResource("creditApi")
+            {
+                Scopes = { "credit.read" }
+            }
+        };
+    
+    public static IEnumerable<ApiScope> ApiScopes =>
+        new[]
+        {
+            new ApiScope("credit.read",  "Read access to Credit API"),
+            new ApiScope("loan.request", "Request loans")
+        };
+    
+    public static IEnumerable<Client> Clients =>
+        new[]
+        {
+            // → Servicio a servicio: Credit Bureau
+            new Client
+            {
+                ClientId           = "credit-bureau-client",
+                ClientName         = "Credit Bureau Service",
+                ClientSecrets      = { new Secret("credit-bureau-secret".Sha256()) },
 
-        // Configure clients
-        public static IEnumerable<Client> Clients =>
-            new Client[]
+                AllowedGrantTypes  = GrantTypes.ClientCredentials,
+                AllowedScopes      = { "credit.read" }
+            },
+            
+            new Client
             {
-                // Credit Bureau → Credit API
-                new Client
+                ClientId           = "loan-service-client",
+                ClientName         = "Loan Service",
+                ClientSecrets      = { new Secret("loan-service-secret".Sha256()) },
+
+                AllowedGrantTypes  = GrantTypes.ClientCredentials,
+                AllowedScopes      = { "loan.request" }
+            },
+            
+            new Client
+            {
+                ClientId                = "loan-frontend-spa",
+                ClientName              = "LoanApp SPA",
+                RequireClientSecret     = false,
+                RequirePkce             = true,
+                AllowedGrantTypes       = GrantTypes.Code,
+                RedirectUris            = { "http://localhost:5173" },
+                PostLogoutRedirectUris  = { "http://localhost:5173" },
+                AllowedCorsOrigins      = { "http://localhost:5173" },
+                AllowedScopes           = 
                 {
-                    ClientId     = "credit-bureau-client",
-                    ClientName   = "Credit Bureau Service",
-                    ClientSecrets= { new Secret("credit-bureau-secret".Sha256()) },
-
-                    AllowedGrantTypes = GrantTypes.ClientCredentials,
-                    AllowedScopes     = { "credit.read" }
+                    "openid",
+                    "profile",
+                    "loan.request"
                 },
-
-                // Loan Service → Loan API
-                new Client
+                AllowAccessTokensViaBrowser = true
+            },
+            
+            new Client
+            {
+                ClientId                = "loan-ropc-client",
+                ClientName              = "LoanApp ROPC Client",
+                RequireClientSecret     = false,
+                AllowedGrantTypes       = GrantTypes.ResourceOwnerPassword,
+                AllowedScopes           = 
                 {
-                    ClientId      = "loan-service-client",
-                    ClientName    = "Loan Service",
-                    ClientSecrets = { new Secret("loan-service-secret".Sha256()) },
+                    "openid",
+                    "profile",
+                    "loan.request"
+                },
+                AllowOfflineAccess      = true 
+            }
+        };
+}
 
-                    // Back-end → back-end communication
-                    AllowedGrantTypes = GrantTypes.ClientCredentials,
-                    AllowedScopes     = { "loan.request" }
-                }
-            };
-    }
 }
