@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(o =>
 {
     o.AddPolicy("AllowFrontend", p =>
-        p.WithOrigins("http://localhost:5174")
+        p.SetIsOriginAllowed(_ => true)
          .AllowAnyHeader()
          .AllowAnyMethod());
 });

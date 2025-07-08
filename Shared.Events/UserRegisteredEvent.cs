@@ -1,7 +1,7 @@
-namespace LoanService.Application.Events;
+namespace Shared.Events;
 
 public record UserRegisteredEvent(
-    string UserId,
+    Guid UserId,
     string FirstName,
     string LastName,
     string Email,

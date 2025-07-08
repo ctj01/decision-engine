@@ -1,7 +1,7 @@
-using LoanService.Application.Events;
 using LoanService.Core;
 using LoanService.Infrastructure.UnitOfWork;
 using MassTransit;
+using Shared.Events;
 
 namespace LoanService.Application.Consumers;
 
@@ -16,9 +16,10 @@ public class UserRegisteredConsumer : IConsumer<UserRegisteredEvent>
         var msg = context.Message;
         var customer = new Customer
         {
-            Id = new Guid(msg.UserId),
+            Id = msg.UserId,
             FirstName = msg.FirstName,
             LastName = msg.LastName,
+            FullName = msg.FirstName + " " + msg.LastName,
             Email = msg.Email,
             IdentificationNumber = msg.IdentificationNumber
         };

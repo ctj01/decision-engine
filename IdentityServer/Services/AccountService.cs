@@ -1,8 +1,8 @@
 using IdentityServer.Data;
 using IdentityServer.Dto;
-using IdentityServer.Shared.Events;
 using MassTransit;
 using Microsoft.AspNetCore.Identity;
+using Shared.Events;
 
 namespace IdentityServer.Services;
 
@@ -39,7 +39,7 @@ public class AccountService : IAccountService
         }
 
         var @event = new UserRegisteredEvent(
-            user.Id,
+            new Guid(user.Id),
             dto.FirstName,
             dto.LastName,
             dto.Email,

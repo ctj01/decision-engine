@@ -1,9 +1,6 @@
----
 # ----------------------------
-# Loan Service Deployment
+# 1) Secret con la cadena de conexión actualizada
 # ----------------------------
-
-# 1) Secret with the database connection string
 apiVersion: v1
 kind: Secret
 metadata:
@@ -11,10 +8,12 @@ metadata:
   namespace: decision-engine-dev
 type: Opaque
 stringData:
-  connectionString: "Server=loandb;Database=LoanDb;User Id=loan_app;Password=LoanApp@123;TrustServerCertificate=True;"
+  connectionString: "Server=mssql;Database=LoanDb;User Id=loan_app;Password=LoanApp@123;TrustServerCertificate=True;"
 
 ---
-# 2) Deployment for the Loan Service
+# ----------------------------
+# 2) Deployment del LoanService
+# ----------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,32 +37,46 @@ spec:
         env:
           - name: ASPNETCORE_ENVIRONMENT
             value: "Development"
-          - name: DB_USER
-            valueFrom:
-              secretKeyRef:
-                name: loan-app-secret
-                key: DB_USER
-          - name: DB_PASS
-            valueFrom:
-              secretKeyRef:
-                name: loan-app-secret
-                key: DB_PASS
+
+          # No es necesario para EF: la cadena trae usuario/clave
+          #- name: DB_USER
+          #  valueFrom:
+          #    secretKeyRef:
+          #      name: loan-app-secret
+          #      key: DB_USER
+          #- name: DB_PASS
+          #  valueFrom:
+          #    secretKeyRef:
+          #      name: loan-app-secret
+          #      key: DB_PASS
+
           - name: ConnectionStrings__LoanDb
             valueFrom:
               secretKeyRef:
                 name: loan-service-db-secret
                 key: connectionString
+
           - name: IdentityServer__Authority 
             value: "http://identityserver.decision-engine-dev.svc.cluster.local"
+
           - name: RabbitMq__Uri
             valueFrom:
               configMapKeyRef:
                 name: rabbitmq-config
                 key: RabbitMq__Uri
 
+        # Opcional: sonda de readiness para HTTP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
 
 ---
-# 3) ClusterIP Service for Loan Service
+# ----------------------------
+# 3) Service interno ClusterIP
+# ----------------------------
 apiVersion: v1
 kind: Service
 metadata:
@@ -73,14 +86,16 @@ spec:
   selector:
     app: loan-service
   ports:
-  - name: http
-    protocol: TCP
-    port: 80
-    targetPort: 80
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
   type: ClusterIP
 
 ---
-# 4) Ingress to expose the Loan Service
+# ----------------------------
+# 4) Ingress (LoanService.local)
+# ----------------------------
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -91,13 +106,13 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: loan-service.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: loan-service
-            port:
-              number: 80
+    - host: loan-service.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: loan-service
+                port:
+                  number: 80

@@ -23,18 +23,28 @@ namespace LoanService.Infrastructure.Data
          
             modelBuilder.Entity<Customer>(b =>
             {
-                b.HasKey(x => x.Id);
-                b.Property(x => x.FullName)
-                 .IsRequired()
-                 .HasMaxLength(200);
-                b.Property(x => x.Email)
-                 .IsRequired()
-                 .HasMaxLength(100);
-                b.Property(x => x.IdentificationNumber)
-                 .IsRequired()
-                 .HasMaxLength(50);
-            });
+             b.HasKey(x => x.Id);
 
+             b.Property(x => x.FirstName)
+              .IsRequired()
+              .HasMaxLength(100);
+
+             b.Property(x => x.LastName)
+              .IsRequired()
+              .HasMaxLength(100);
+
+             b.Property(x => x.Email)
+              .IsRequired()
+              .HasMaxLength(100);
+
+             b.Property(x => x.IdentificationNumber)
+              .IsRequired()
+              .HasMaxLength(50);
+
+             b.Property(x => x.FullName)
+              .HasMaxLength(200)
+              .IsRequired();
+            });
           
             modelBuilder.Entity<LoanProduct>(b =>
             {
