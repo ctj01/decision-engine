@@ -16,37 +16,41 @@ A suite of microservices for credit evaluation and loan management, built with F
 * **credit-bureau/**
 
   * (Optional) Client microservice querying a “Credit Bureau API”
-* **loan-service/** *(coming soon)*
+* **loan-service/**
 
-  * Loan request management
+  * ASP .NET Core service for loan request management
+  * Listens to `UserRegisteredEvent` via RabbitMQ and persists `Customer`
+  * Exposes secured endpoints under `/loans`
 * **k8s/**
 
-  * Manifests for Secrets, Deployments, Services, Ingress, StatefulSet (SQL Server), initialization Jobs, etc.
+  * Manifests for Secrets, ConfigMaps, Deployments, Services, Ingress, StatefulSet (SQL Server), Jobs, etc.
 
 ---
 
 ## 🚀 Architecture
 
 ```text
-┌──────────────┐     ┌─────────────┐
-│  Front-end   │◀──▶│ IdentitySrv │◀───┐
-└──────────────┘     └──────┬──────┘    │
-                              │          │
-┌───────────────┐  Client     ▼   Client └─┐
-│  Credit-Bureau│◀──────────▶│  AI-Service  │
-└───────────────┘             └─────┬──────┘
-                                      │
-                                ┌─────▼────┐
-                                │ SQL Server│ (Auth DB)
-                                └───────────┘
+┌──────────────┐     ┌─────────────┐     ┌──────────────┐
+│  Front-end   │◀──▶│ IdentitySrv │◀───▶│  Loan-Service │
+└──────────────┘     └──────┬──────┘     └───────┬──────┘
+                              │                   │
+                              │                   ▼
+                         ┌────▼────┐         ┌────▼────┐
+                         │AI-Service│         │RabbitMQ │
+                         └──────────┘         └────┬────┘
+                                              │
+                                      ┌───────▼────────┐
+                                      │   SQL Server   │
+                                      │(Auth DB & LoanDb)│
+                                      └────────────────┘
 ```
 
 * **IdentityServer**: Authentication/authorization via OIDC & OAuth2
 * **AI-Service**: Machine learning inference
 * **Credit-Bureau**: Credit data microservice
-* **Loan-Service**: Loan management (in development)
-* **SQL Server**: IdentityServer’s database
-* **RabbitMQ**: Message broker (to integrate)
+* **Loan-Service**: Loan management & event consumer
+* **SQL Server**: Auth DB (IdentityServer) + LoanDb (Loan-Service)
+* **RabbitMQ**: Message broker for cross-service events
 
 ---
 
@@ -55,7 +59,7 @@ A suite of microservices for credit evaluation and loan management, built with F
 * [Docker](https://www.docker.com/)
 * [kubectl](https://kubernetes.io/docs/tasks/tools/)
 * Minikube / GKE / AKS / EKS
-* .NET 9 SDK (for IdentityServer)
+* .NET 9 SDK (for IdentityServer & Loan-Service)
 * Python 3.10+ (for ai-service)
 
 ---
@@ -68,41 +72,34 @@ A suite of microservices for credit evaluation and loan management, built with F
    git clone https://github.com/your-user/decision-engine.git
    cd decision-engine
    ```
-2. **Environment variables**
 
-   ```bash
-   export ConnectionStrings__AuthDb="Server=localhost;Database=AuthServerDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true"
-   export ASPNETCORE_ENVIRONMENT="Development"
-   ```
-3. **Run SQL Server locally**
+2. **Run SQL Server locally**
 
    ```bash
    docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourStrong@Passw0rd" \
      -p 1433:1433 --name mssql-local -d mcr.microsoft.com/mssql/server:2019-latest
    ```
-4. **Apply EF Core migrations**
+
+3. **Build & run AI-Service**
+
+   ```bash
+   cd ai-service
+   pip install -r requirements.txt
+   python training.py         # train model
+   uvicorn app:app --reload
+   ```
+
+4. **Run IdentityServer**
 
    ```bash
    cd identity-server
-   dotnet ef database update
+   dotnet run
    ```
-5. **Seed an admin user**
+
+5. **Run Loan-Service**
 
    ```bash
-   dotnet run --project identity-server \
-     -- SeedUser --UserName admin --Password Admin@123
-   ```
-6. **Build & run services**
-
-   ```bash
-   # AI-Service
-   cd ai-service
-   pip install -r requirements.txt
-   python training.py
-   uvicorn app:app --reload
-
-   # IdentityServer
-   cd ../identity-server
+   cd loan-service/src/LoanService.Api
    dotnet run
    ```
 
@@ -110,33 +107,44 @@ A suite of microservices for credit evaluation and loan management, built with F
 
 ## 📦 Docker & Kubernetes
 
-1. **Build & push images**
+1. **Build Docker images**
 
    ```bash
    # AI-Service
    docker build -t yourrepo/ai-inference:latest ai-service/
+
    # IdentityServer
    docker build -t yourrepo/identity-server:latest identity-server/
+
+   # Loan-Service
+   docker build -t yourrepo/loan-service:latest loan-service/src/
+   ```
+
+2. **Push images to registry** (Docker Hub, ACR, etc.)
+
+   ```bash
    docker push yourrepo/ai-inference:latest
    docker push yourrepo/identity-server:latest
+   docker push yourrepo/loan-service:latest
    ```
-2. **Configure namespace**
+
+3. **Deploy to Kubernetes**
 
    ```bash
-   kubectl create ns decision-engine-dev
+   # Ensure namespace
+   kubectl create ns decision-engine-dev || true
    kubectl config set-context --current --namespace=decision-engine-dev
-   ```
-3. **Deploy manifests**
 
-   ```bash
+   # Apply all k8s manifests
    kubectl apply -f k8s/
    ```
-4. **Verify**
+
+4. **Verify deployments**
 
    ```bash
    kubectl get all
-   kubectl logs deployment/ai-inference
    kubectl logs deployment/identity-server
+   kubectl logs deployment/loan-service
    kubectl port-forward svc/ai-inference 8000:8000
    ```
 
@@ -151,16 +159,28 @@ A suite of microservices for credit evaluation and loan management, built with F
     -H "Content-Type: application/json" \
     -d '{"salary":5000000,"age":30,"credit_score":700,"total_debt":1000000,"payment_history":[{"month":"2025-06","status":"on_time"}]}'
   ```
+
 * **IdentityServer Metadata**
+
   Visit `http://identity-server.local/.well-known/openid-configuration`
+
+* **Loan-Service Endpoints**
+
+  ```bash
+  # list all loans
+  curl -H "Authorization: Bearer <token>" http://loan-service.local/loans
+
+  # get by id
+  curl -H "Authorization: Bearer <token>" http://loan-service.local/loans/<loanId>
+  ```
 
 ---
 
 ## 🎯 Best Practices
 
 * Store secrets in **Kubernetes Secrets**
-* Use **Helm** for parametrized deployments
-* Integrate **CI/CD** (GitHub Actions, Azure Pipelines)
+* Use **Helm** for parameterized templating
+* Integrate **CI/CD** pipelines
 * Add **unit** & **integration tests**
 * Monitor with **Prometheus** & **Grafana**
 
@@ -168,18 +188,17 @@ A suite of microservices for credit evaluation and loan management, built with F
 
 ## 🛣 Roadmap
 
-* Integrate **RabbitMQ** for loan orchestration
-* Implement **Loan-Service** in ASP .NET Core
-* Build a simple UI (React + Tailwind)
-* Add monitoring & alerts
-* Publish images to **Docker Hub**
+* Enhance **Loan-Service** with more business rules
+* Implement **front-end** (React + Tailwind)
+* Add **RabbitMQ** orchestration for multi-step workflows
+* Improve security, performance and observability
 
 ---
 
 ## ⚖️ License
 
 MIT © Cristian Mendoza
-## LinkedIn
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-ctj01-blue?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/ctj01/)
-```
+## 🔗 LinkedIn
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-ctj01-blue?style=flat-square\&logo=linkedin)](https://www.linkedin.com/in/ctj01/)
