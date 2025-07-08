@@ -3,6 +3,7 @@ using LoanService.Application.Consumers;
 using LoanService.Application.Extensions;
 using LoanService.Infrastructure.Extensions;
 using MassTransit;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,5 +58,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapLoanEndpoints();
-
+app.UseHttpMetrics();
+app.MapMetrics();
 app.Run();

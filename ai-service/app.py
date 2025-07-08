@@ -1,23 +1,55 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
 import joblib
 from features import extract_features, compute_dti, compute_avg_delay
 from jose import jwt, JWTError
 import requests
 import os
 
-IDENTITY_SERVER_URL = os.getenv('IDENTITY_SERVER_URL', 'http://identity-server.local')
-ALGORITHMS = ['RS256']
+# ————— Prometheus metrics —————
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests",
+    ["method", "endpoint", "http_status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_latency_seconds", "Latency of HTTP requests",
+    ["method", "endpoint"]
+)
 
-oidc_config = requests.get(f"{IDENTITY_SERVER_URL}/.well-known/openid-configuration").json()
-jwks_uri = oidc_config['jwks_uri']
-jwks = requests.get(jwks_uri).json()
-
+# ————— App and security setup —————
 app = FastAPI()
 security = HTTPBearer()
 model = joblib.load('model.joblib')
 
+# ————— OIDC setup —————
+IDENTITY_SERVER_URL = os.getenv('IDENTITY_SERVER_URL', 'http://identity-server.local')
+ALGORITHMS = ['RS256']
+oidc_config = requests.get(f"{IDENTITY_SERVER_URL}/.well-known/openid-configuration").json()
+jwks_uri = oidc_config['jwks_uri']
+jwks = requests.get(jwks_uri).json()
+
+# ————— Middleware para métricas —————
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    method = request.method
+    endpoint = request.url.path
+    with REQUEST_LATENCY.labels(method=method, endpoint=endpoint).time():
+        response = await call_next(request)
+    REQUEST_COUNT.labels(
+        method=method, endpoint=endpoint, http_status=response.status_code
+    ).inc()
+    return response
+
+# ————— Endpoint de métricas —————
+@app.get("/metrics")
+async def metrics():
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+
+# ————— Modelos Pydantic —————
 class PredictRequest(BaseModel):
     salary: float
     age: int
@@ -29,6 +61,7 @@ class PredictResponse(BaseModel):
     decision: str
     reasons: list[str]
 
+# ————— Verificación de token —————
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
@@ -62,6 +95,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
     return payload
 
+# ————— Endpoint de predicción —————
 @app.post('/predict', response_model=PredictResponse, dependencies=[Depends(verify_token)])
 def predict(req: PredictRequest):
     raw = req.dict()

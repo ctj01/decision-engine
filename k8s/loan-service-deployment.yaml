@@ -21,6 +21,7 @@ metadata:
   namespace: decision-engine-dev
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: loan-service
@@ -37,41 +38,20 @@ spec:
         env:
           - name: ASPNETCORE_ENVIRONMENT
             value: "Development"
-
-          # No es necesario para EF: la cadena trae usuario/clave
-          #- name: DB_USER
-          #  valueFrom:
-          #    secretKeyRef:
-          #      name: loan-app-secret
-          #      key: DB_USER
-          #- name: DB_PASS
-          #  valueFrom:
-          #    secretKeyRef:
-          #      name: loan-app-secret
-          #      key: DB_PASS
-
+          - name: ASPNETCORE_URLS
+            value: "http://+:80"
           - name: ConnectionStrings__LoanDb
             valueFrom:
               secretKeyRef:
                 name: loan-service-db-secret
                 key: connectionString
-
-          - name: IdentityServer__Authority 
+          - name: IdentityServer__Authority
             value: "http://identityserver.decision-engine-dev.svc.cluster.local"
-
           - name: RabbitMq__Uri
             valueFrom:
               configMapKeyRef:
                 name: rabbitmq-config
                 key: RabbitMq__Uri
-
-        # Opcional: sonda de readiness para HTTP
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 80
-          initialDelaySeconds: 10
-          periodSeconds: 10
 
 ---
 # ----------------------------

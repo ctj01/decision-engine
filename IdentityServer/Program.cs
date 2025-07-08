@@ -1,3 +1,4 @@
+using Duende.IdentityServer;
 using IdentityServer;
 using IdentityServer.Data;
 using IdentityServer.Dto;
@@ -9,29 +10,26 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1) CORS policy
 builder.Services.AddCors(o =>
-{
     o.AddPolicy("AllowFrontend", p =>
         p.SetIsOriginAllowed(_ => true)
          .AllowAnyHeader()
-         .AllowAnyMethod());
-});
+         .AllowAnyMethod()));
 
-// 2) EF Core + ASP.NET Identity
 builder.Services.AddDbContext<ApplicationDbContext>(opts =>
     opts.UseSqlServer(builder.Configuration.GetConnectionString("AuthDb")));
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(opts =>
     {
-        opts.Password.RequireDigit = true;
         opts.Password.RequiredLength = 6;
         opts.Password.RequireNonAlphanumeric = false;
+        opts.Password.RequireDigit = true;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-// 3) Duende IdentityServer
+builder.Services.AddRazorPages();
+
 builder.Services.AddIdentityServer()
     .AddAspNetIdentity<ApplicationUser>()
     .AddInMemoryClients(Config.Clients)
@@ -39,7 +37,6 @@ builder.Services.AddIdentityServer()
     .AddInMemoryIdentityResources(Config.IdentityResources)
     .AddDeveloperSigningCredential();
 
-// 4) AuthZ + MassTransit
 builder.Services.AddAuthorization();
 builder.Services.AddMassTransit(x =>
 {
@@ -49,36 +46,23 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
-// ───────────────────────────────────────────────
-//  MIDDLEWARE ORDER
-// ───────────────────────────────────────────────
-
 app.UseRouting();
-
 app.UseCors("AllowFrontend");
-
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseIdentityServer();
 app.UseAuthorization();
 
-// ───────────────────────────────────────────────
-//  ENDPOINTS
-// ───────────────────────────────────────────────
+app.MapRazorPages();
 
-// 1) Preflight OPTIONS for register
-app.MapMethods("/api/account/register",
-               new[] { "OPTIONS" },
-               () => Results.Ok())
+app.MapMethods("/api/account/register", new[] { "OPTIONS" }, () => Results.Ok())
    .AllowAnonymous();
 
-// 2) Actual registration POST
 app.MapPost("/api/account/register",
     async ([FromServices] IAccountService svc, [FromBody] RegisterDto dto) =>
     {
         var resp = await svc.RegisterAsync(dto);
-        return resp.Success
-            ? Results.Ok(resp)
-            : Results.BadRequest(resp);
+        return resp.Success ? Results.Ok(resp) : Results.BadRequest(resp);
     })
    .AllowAnonymous();
 

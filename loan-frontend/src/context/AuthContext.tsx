@@ -1,7 +1,7 @@
 // src/context/AuthContext.tsx
 import { createContext, useContext, useState } from 'react'
-import type  {ReactNode } from 'react'
 import axios from 'axios'
+import type { ReactNode } from 'react'
 
 interface AuthContextType {
   token: string | null
@@ -9,30 +9,32 @@ interface AuthContextType {
   logout: () => void
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType|undefined>(undefined)
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [token, setToken] = useState<string | null>(null)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState<string| null>(null)
 
   const login = async (username: string, password: string) => {
-    const params = new URLSearchParams()
-    params.append('grant_type', 'password')
-    params.append('username', username)
-    params.append('password', password)
-    params.append('client_id', 'loan_app_client')
-
-    const response = await axios.post(
-      'http://identityserver.local/connect/token',
-      params,
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+    const params = new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'loan-ropc-client',
+      scope: 'openid profile loan.request',
+      username,
+      password,
+    })
+    const resp = await axios.post(
+      `http://identity-server.local/connect/token`,
+      params.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     )
-    setToken(response.data.access_token)
-    localStorage.setItem('token', response.data.access_token)
+    setToken(resp.data.access_token)
+    // opcional: guarda en localStorage:
+    localStorage.setItem('access_token', resp.data.access_token)
   }
 
   const logout = () => {
     setToken(null)
-    localStorage.removeItem('token')
+    localStorage.removeItem('access_token')
   }
 
   return (
@@ -42,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   )
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
   return ctx

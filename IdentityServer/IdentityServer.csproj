@@ -21,4 +21,40 @@
     <PackageReference Include="Shared.Events" Version="1.0.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Pages\Ciba\" />
+    <Folder Include="wwwroot\lib\bootstrap4-glyphicons\css\" />
+    <Folder Include="wwwroot\lib\bootstrap4-glyphicons\fonts\glyphicons\" />
+    <Folder Include="wwwroot\lib\bootstrap4-glyphicons\maps\" />
+    <Folder Include="wwwroot\lib\bootstrap\dist\js\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="wwwroot\lib\bootstrap4-glyphicons\maps\glyphicons-fontawesome.css" />
+    <Content Remove="wwwroot\lib\bootstrap4-glyphicons\fonts\glyphicons\glyphicons-halflings-regular.woff2" />
+    <Content Remove="wwwroot\lib\bootstrap4-glyphicons\fonts\glyphicons\glyphicons-halflings-regular.woff" />
+    <Content Remove="wwwroot\lib\bootstrap4-glyphicons\css\bootstrap-glyphicons.min.css" />
+    <Content Remove="wwwroot\lib\bootstrap4-glyphicons\LICENSE" />
+    <Content Remove="wwwroot\lib\bootstrap\dist\js\bootstrap.js.map" />
+    <Content Remove="wwwroot\lib\bootstrap\dist\js\bootstrap.bundle.min.js.map" />
+    <Content Remove="wwwroot\lib\bootstrap\dist\js\bootstrap.bundle.js.map" />
+    <Content Remove="wwwroot\lib\bootstrap\dist\css\bootstrap.min.css.map" />
+    <Content Remove="wwwroot\lib\bootstrap\README.md" />
+    <Content Remove="wwwroot\lib\bootstrap\LICENSE" />
+    <Content Remove="wwwroot\favicon.ico" />
+    <Content Remove="wwwroot\duende-logo.svg" />
+    <Content Remove="Pages\ExternalLogin\Challenge.cshtml" />
+    <Content Remove="Pages\Ciba\Index.cshtml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Pages\Grants\ViewModel.cs" />
+    <Compile Remove="Pages\ExternalLogin\Challenge.cshtml.cs" />
+    <Compile Remove="Pages\Diagnostics\Index.cshtml.cs" />
+    <Compile Remove="Pages\Ciba\ConsentOptions.cs" />
+    <Compile Remove="Pages\Ciba\Consent.cshtml.cs" />
+    <Compile Remove="Pages\Ciba\All.cshtml.cs" />
+    <Compile Remove="Pages\Account\Logout\LoggedOutViewModel.cs" />
+  </ItemGroup>
+
 </Project>
