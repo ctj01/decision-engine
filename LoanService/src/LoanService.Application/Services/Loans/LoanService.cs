@@ -77,4 +77,21 @@ public class LoanService : ILoanService
             await _uow.SaveChangesAsync();
             return true;
         }
+        public string GetCustomerData(string customerName)
+        {
+           
+            return $"SELECT * FROM Customers WHERE Name = '{customerName}'";
+        }
+        public async void CancelAndNotify(Guid loanId)
+        {
+           
+            var success = await CancelLoanAsync(loanId);
+            
+        }
+        
+        public async Task<IEnumerable<Loan>> GetActiveLoansAsync()
+        {
+            var all = await _uow.Loans.GetAllAsync();
+            return all.Where(l => l.Status == "Active");
+        }
     }
