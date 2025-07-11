@@ -24,7 +24,7 @@ builder.Services
     .AddAuthenticationAndAuthorization(builder.Configuration)
     .AddSwaggerDocumentation(builder.Configuration);
 
-
+// 🚀 MassTransit + RabbitMQ con retry y DLQ
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<UserRegisteredConsumer>();
@@ -35,18 +35,27 @@ builder.Services.AddMassTransit(x =>
 
         cfg.ReceiveEndpoint("user-registered-queue", e =>
         {
+            // 1) Consumer
             e.ConfigureConsumer<UserRegisteredConsumer>(ctx);
+
+            // 2) Retry policy: hasta 3 intentos con back-off exponencial
+            e.UseMessageRetry(r => r.Exponential(
+                retryLimit: 3,
+                minInterval: TimeSpan.FromSeconds(1),
+                maxInterval: TimeSpan.FromSeconds(10),
+                intervalDelta: TimeSpan.FromSeconds(2)
+            ));
+
+            // 3) Circuit breaker:  if 3 consecutive failures, pause for 30 seconds
+            e.BindDeadLetterQueue("user-registered-queue-dlq");
         });
     });
 });
-
-
 
 var app = builder.Build();
 
 app.UseRouting();
 app.UseCors("AllowFrontend");
-
 app.UseSwaggerWithUi();
 
 if (!app.Environment.IsDevelopment())
