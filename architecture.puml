@@ -1,0 +1,31 @@
+@startuml
+!define C4P https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master
+!include C4P/C4_Context.puml
+!include C4P/C4_Container.puml
+
+'===================='
+'  Context Diagram   '
+'===================='
+Person(user, "End User")
+System(decisionEngine, "Decision Engine", "Microservices for loan decision automation")
+Rel(user, decisionEngine, "Uses")
+
+'===================='
+' Container Diagram '
+'===================='
+Container(decisionEngine, loanService, "Loan Service", ".NET 7 + MassTransit", "Consumes CustomerRegistered events, manages loans and retries/DLQ")
+Container(decisionEngine, aiService, "AI Inference Service", "Python + FastAPI", "Summarizes audio, scores risk")
+Container(decisionEngine, identityServer, "Identity Server", "Duende IdentityServer", "Handles authentication & authorization")
+Container(decisionEngine, rabbitmq, "RabbitMQ Broker", "AMQP", "Message bus for events and retries")
+Container(decisionEngine, database, "Loan Database", "MongoDB/SQL Server", "Stores loans & customer data")
+Container(decisionEngine, prometheus, "Prometheus", "Metrics Monitoring", "Scrapes metrics from services")
+Container(decisionEngine, frontend, "Web Frontend", "React.js", "User dashboard and loan requests")
+
+Rel(user, frontend, "Interacts via HTTP/HTTPS")
+Rel(frontend, loanService, "REST API calls")
+Rel(loanService, rabbitmq, "Publishes/Consumes AMQP events")
+Rel(loanService, database, "Reads/Writes data")
+Rel(loanService, identityServer, "Validates tokens")
+Rel(rabbitmq, aiService, "Delivers Decision Of Loan Application events")
+Rel(decisionEngine, prometheus, "Exports /metrics")
+@enduml
