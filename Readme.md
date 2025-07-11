@@ -23,34 +23,35 @@ A suite of microservices for credit evaluation and loan management, built with F
   * Exposes secured endpoints under `/loans`
 * **k8s/**
 
-  * Manifests for Secrets, ConfigMaps, Deployments, Services, Ingress, StatefulSet (SQL Server), Jobs, etc.
+  * Manifests for Secrets, ConfigMaps, Deployments, Services, Ingress, StatefulSet (SQL Server), Jobs, CRD Queues, etc.
 
 ---
 
 ## 🚀 Architecture
 
-```text
-┌──────────────┐     ┌─────────────┐     ┌──────────────┐
-│  Front-end   │◀──▶│ IdentitySrv │◀───▶│  Loan-Service │
-└──────────────┘     └──────┬──────┘     └───────┬──────┘
-                              │                   │
-                              │                   ▼
-                         ┌────▼────┐         ┌────▼────┐
-                         │AI-Service│         │RabbitMQ │
-                         └──────────┘         └────┬────┘
-                                              │
-                                      ┌───────▼────────┐
-                                      │   SQL Server   │
-                                      │(Auth DB & LoanDb)│
-                                      └────────────────┘
-```
+![Decision Engine Architecture](docs/architecture.png)
 
-* **IdentityServer**: Authentication/authorization via OIDC & OAuth2
-* **AI-Service**: Machine learning inference
-* **Credit-Bureau**: Credit data microservice
-* **Loan-Service**: Loan management & event consumer
-* **SQL Server**: Auth DB (IdentityServer) + LoanDb (Loan-Service)
-* **RabbitMQ**: Message broker for cross-service events
+This C4 diagram shows the Context and Container views of the Decision Engine ecosystem:
+
+* **Users** interact through the Web Frontend (
+  React.js
+  ).
+* **Loan Service** (.NET 7 + MassTransit) handles loan requests and consumes events from RabbitMQ.
+* **Identity Server** (Duende IdentityServer) provides authentication & authorization.
+* **AI Service** (Python + FastAPI) processes audio summaries and risk scoring.
+* **RabbitMQ** acts as the message bus with retry and DLQ support.
+* **Loan Database** (MongoDB/SQL Server) persists customers and loans.
+* **Prometheus** collects metrics from all services.
+
+---
+
+## 🔄 Latest Changes
+
+* **Retry & Dead-Letter Queue**
+
+  * Configured MassTransit to use exponential retry (3 attempts, 1s–10s) for `UserRegisteredConsumer`.
+  * Bound failed messages to `user-registered-queue-dlq` dead-letter queue in RabbitMQ.
+  * Updated Kubernetes manifests to declare `user-registered-queue` and `user-registered-queue-dlq` CRD queues.
 
 ---
 
@@ -120,7 +121,7 @@ A suite of microservices for credit evaluation and loan management, built with F
    docker build -t yourrepo/loan-service:latest loan-service/src/
    ```
 
-2. **Push images to registry** (Docker Hub, ACR, etc.)
+2. **Push images to registry**
 
    ```bash
    docker push yourrepo/ai-inference:latest
@@ -161,7 +162,6 @@ A suite of microservices for credit evaluation and loan management, built with F
   ```
 
 * **IdentityServer Metadata**
-
   Visit `http://identity-server.local/.well-known/openid-configuration`
 
 * **Loan-Service Endpoints**
