@@ -1,4 +1,4 @@
----
+# 1) RabbitMQ Deployment y Service
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,11 +31,11 @@ spec:
         ports:
         - name: amqp
           containerPort: 5672
-          protocol: TCP
         - name: management
           containerPort: 15672
-          protocol: TCP
+
 ---
+# 2) RabbitMQ Service AMQP y Management
 apiVersion: v1
 kind: Service
 metadata:
@@ -49,12 +49,32 @@ spec:
   - name: amqp
     port: 5672
     targetPort: 5672
-    protocol: TCP
-    # opcional: si quieres dejar que Kubernetes asigne el nodePort,
-    # puedes omitir esta línea. Si la fijas, se mantiene la misma:
     nodePort: 30928
   - name: management
     port: 15672
     targetPort: 15672
-    protocol: TCP
     nodePort: 31894
+
+---
+# 3) Dead-letter queue for failed messages
+apiVersion: rabbitmq.com/v1beta1
+kind: Queue
+metadata:
+  name: user-registered-queue
+  namespace: decision-engine-dev
+spec:
+  name: user-registered-queue
+  arguments:
+    # Exchange por defecto (“”) y ruta a la DLQ
+    x-dead-letter-exchange: ""
+    x-dead-letter-routing-key: user-registered-queue-dlq
+
+---
+# 4) Dead-letter queue  for failed messages
+apiVersion: rabbitmq.com/v1beta1
+kind: Queue
+metadata:
+  name: user-registered-queue-dlq
+  namespace: decision-engine-dev
+spec:
+  name: user-registered-queue-dlq
