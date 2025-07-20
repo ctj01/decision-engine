@@ -29,7 +29,12 @@ spec:
     metadata:
       labels:
         app: loan-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+        prometheus.io/path: "/metrics"
     spec:
+      restartPolicy: Always
       containers:
       - name: loan-service
         image: loan-service:1.0
@@ -46,12 +51,37 @@ spec:
                 name: loan-service-db-secret
                 key: connectionString
           - name: IdentityServer__Authority
-            value: "http://identityserver.decision-engine-dev.svc.cluster.local"
+            value: "http://identity-server.decision-engine-dev.svc.cluster.local:5001"
           - name: RabbitMq__Uri
             valueFrom:
               configMapKeyRef:
                 name: rabbitmq-config
                 key: RabbitMq__Uri
+        # ✅ Basic health checks using minimal API endpoint
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 3
+        # ✅ Resource limits for stability
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 
 ---
 # ----------------------------

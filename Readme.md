@@ -1,6 +1,29 @@
-# Decision Engine
+# Deci## 📦 Contents
 
-A suite of microservices for credit evaluation and loan management, built with FastAPI, scikit-learn, ASP .NET Core + Duende IdentityServer, and deployed on Kubernetes.
+* **loan-frontend/**
+  * Modern React + TypeScript frontend with responsive sidebar navigation
+  * Redux Toolkit for state management
+  * Tailwind CSS for modern UI components
+  * Authentication integration with IdentityServer
+  * Dashboard with loan statistics and management
+
+* **ai-service/**
+  * Inference service exposing `/predict`
+  * Trains a RandomForest model for **approve | pending | reject** decisions
+
+* **identity-server/**
+  * Duende IdentityServer + ASP .NET Identity for user management and OAuth2/OIDC
+
+* **credit-bureau/**
+  * (Optional) Client microservice querying a "Credit Bureau API"
+
+* **loan-service/**
+  * ASP .NET Core service for loan request management
+  * Listens to `UserRegisteredEvent` via RabbitMQ and persists `Customer`
+  * Exposes secured endpoints under `/loans`
+
+* **k8s/**
+  * Manifests for Secrets, ConfigMaps, Deployments, Services, Ingress, StatefulSet (SQL Server), Jobs, CRD Queues, etc.ern microservices suite for credit evaluation and loan management, featuring a React frontend with modern sidebar navigation, FastAPI ML service, ASP .NET Core backend, Duende IdentityServer authentication, and Kubernetes deployment.
 
 ---
 
@@ -47,8 +70,15 @@ This C4 diagram shows the Context and Container views of the Decision Engine eco
 
 ## 🔄 Latest Changes
 
-* **Retry & Dead-Letter Queue**
+* **Modern Frontend Implementation**
+  * Created responsive React + TypeScript frontend with modern sidebar navigation
+  * Implemented Redux Toolkit for state management with loan and auth slices
+  * Integrated Tailwind CSS for modern, professional UI components
+  * Built modular dashboard with statistics grid, loan requests table, and creation modal
+  * Added JWT authentication integration with IdentityServer
+  * Configured proper routing and protected routes
 
+* **Retry & Dead-Letter Queue**
   * Configured MassTransit to use exponential retry (3 attempts, 1s–10s) for `UserRegisteredConsumer`.
   * Bound failed messages to `user-registered-queue-dlq` dead-letter queue in RabbitMQ.
   * Updated Kubernetes manifests to declare `user-registered-queue` and `user-registered-queue-dlq` CRD queues.
@@ -102,6 +132,14 @@ This C4 diagram shows the Context and Container views of the Decision Engine eco
    ```bash
    cd loan-service/src/LoanService.Api
    dotnet run
+   ```
+
+6. **Run Frontend**
+
+   ```bash
+   cd loan-frontend
+   npm install
+   npm run dev
    ```
 
 ---
@@ -189,8 +227,10 @@ This C4 diagram shows the Context and Container views of the Decision Engine eco
 ## 🛣 Roadmap
 
 * Enhance **Loan-Service** with more business rules
-* Implement **front-end** (React + Tailwind)
+* ✅ **Modern Frontend** implemented (React + Tailwind + Redux Toolkit)
 * Add **RabbitMQ** orchestration for multi-step workflows
+* Implement advanced dashboard analytics and reporting
+* Add **unit** & **integration tests** for frontend components
 * Improve security, performance and observability
 
 ---

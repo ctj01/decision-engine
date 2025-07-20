@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: load-generator
+  namespace: decision-engine-dev
+spec:
+  containers:
+  - name: load-generator
+    image: busybox
+    command: ["/bin/sh"]
+    args:
+    - -c
+    - |
+      echo "Starting load test..."
+      while true; do
+        wget -q -O- http://loan-service/api/loans/healthcheck || true
+        wget -q -O- http://ai-inference:8000/health || true
+        sleep 0.1
+      done
+  restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stress-test
+  namespace: decision-engine-dev
+spec:
+  parallelism: 5
+  completions: 5
+  template:
+    spec:
+      containers:
+      - name: stress-test
+        image: fortio/fortio
+        args:
+        - load
+        - -c
+        - "10"
+        - -qps
+        - "100"
+        - -t
+        - "2m"
+        - http://loan-service/api/loans/healthcheck
+      restartPolicy: Never
