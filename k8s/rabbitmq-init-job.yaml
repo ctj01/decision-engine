@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rabbitmq-init
+  namespace: decision-engine-dev
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: rabbitmq-init
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for RabbitMQ to be ready..."
+          until curl -f http://admin:admin@rabbitmq-service:15672/api/health/checks/virtual-hosts; do
+            echo "RabbitMQ not ready yet..."
+            sleep 5
+          done
+          
+          echo "RabbitMQ is ready! Cleaning up existing queues..."
+          
+          # Delete existing queues if they exist (ignore errors)
+          curl -X DELETE -u admin:admin http://rabbitmq-service:15672/api/queues/%2F/user-registered-queue || true
+          curl -X DELETE -u admin:admin http://rabbitmq-service:15672/api/queues/%2F/user-registered-queue-dlq || true
+          
+          echo "Queue cleanup completed!"

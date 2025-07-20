@@ -30,7 +30,14 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(opts =>
 
 builder.Services.AddRazorPages();
 
-builder.Services.AddIdentityServer()
+builder.Services.AddIdentityServer(options =>
+    {
+        var issuerUri = builder.Configuration["IdentityServer:IssuerUri"];
+        if (!string.IsNullOrEmpty(issuerUri))
+        {
+            options.IssuerUri = issuerUri;
+        }
+    })
     .AddAspNetIdentity<ApplicationUser>()
     .AddInMemoryClients(Config.Clients)
     .AddInMemoryApiScopes(Config.ApiScopes)
@@ -65,5 +72,11 @@ app.MapPost("/api/account/register",
         return resp.Success ? Results.Ok(resp) : Results.BadRequest(resp);
     })
    .AllowAnonymous();
+
+// Initialize seed data
+using (var scope = app.Services.CreateScope())
+{
+    await SeedData.InitializeAsync(scope.ServiceProvider);
+}
 
 app.Run();

@@ -1,11 +1,16 @@
 using LoanService.Api.Extensions;
 using LoanService.Application.Consumers;
 using LoanService.Application.Extensions;
+using LoanService.Application.Configuration;
 using LoanService.Infrastructure.Extensions;
 using MassTransit;
 using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configuración de opciones
+builder.Services.Configure<AiServiceOptions>(
+    builder.Configuration.GetSection(AiServiceOptions.SectionName));
 
 builder.Services.AddCors(options =>
 {
@@ -23,6 +28,9 @@ builder.Services
     .AddApplicationServices()
     .AddAuthenticationAndAuthorization(builder.Configuration)
     .AddSwaggerDocumentation(builder.Configuration);
+
+// ✅ Add controllers for health endpoint
+builder.Services.AddControllers();
 
 // 🚀 MassTransit + RabbitMQ con retry y DLQ
 builder.Services.AddMassTransit(x =>
@@ -66,7 +74,17 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapControllers(); // ✅ Map controllers for health endpoint
 app.MapLoanEndpoints();
+
+// ✅ Add simple health check endpoint using minimal API
+app.MapGet("/health", () => Results.Ok(new { 
+    status = "healthy", 
+    timestamp = DateTime.UtcNow,
+    service = "LoanService API",
+    version = "1.0.0" 
+}));
+
 app.UseHttpMetrics();
 app.MapMetrics();
 app.Run();
